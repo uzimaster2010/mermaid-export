@@ -1,0 +1,1221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mermaid Diagram Export Tool</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/split.js/1.6.5/split.min.js"></script>
+    <style>
+        :root {
+            --primary: #6366f1;
+            --primary-hover: #4f46e5;
+            --bg: #0f172a;
+            --surface: #1e293b;
+            --surface-2: #334155;
+            --border: #475569;
+            --text: #f1f5f9;
+            --text-muted: #94a3b8;
+            --success: #22c55e;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+        }
+
+        /* Header */
+        .header {
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            padding: 16px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+
+        .header-title {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .header-title svg {
+            width: 32px;
+            height: 32px;
+            color: var(--primary);
+        }
+
+        .header-title h1 {
+            font-size: 1.25rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--primary), #a78bfa);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        /* Buttons */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: var(--surface-2);
+            color: var(--text);
+            font-size: 0.875rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+
+        .btn:hover {
+            background: var(--border);
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            border-color: var(--primary);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-hover);
+        }
+
+        .btn-success {
+            background: #16a34a;
+            border-color: #16a34a;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #15803d;
+        }
+
+        .btn-danger {
+            background: var(--danger);
+            border-color: var(--danger);
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #dc2626;
+        }
+
+        .btn svg {
+            width: 16px;
+            height: 16px;
+        }
+
+        .btn-icon {
+            padding: 8px;
+        }
+
+        /* Toggle Switch for Direction */
+        .direction-toggle {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: var(--surface-2);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 4px;
+        }
+
+        .direction-btn {
+            padding: 6px 12px;
+            border: none;
+            border-radius: 6px;
+            background: transparent;
+            color: var(--text-muted);
+            font-size: 0.8rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .direction-btn.active {
+            background: var(--primary);
+            color: white;
+        }
+
+        .direction-btn svg {
+            width: 14px;
+            height: 14px;
+        }
+
+        /* Main Layout */
+        .main {
+            display: flex;
+            height: calc(100vh - 68px);
+        }
+
+        /* Editor Panel */
+        .editor-panel {
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .panel-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 16px;
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .panel-title {
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
+        }
+
+        .editor-wrapper {
+            flex: 1;
+            position: relative;
+        }
+
+        #mermaid-input {
+            width: 100%;
+            height: 100%;
+            background: var(--bg);
+            color: #e2e8f0;
+            border: none;
+            padding: 16px;
+            font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+            font-size: 0.9rem;
+            line-height: 1.6;
+            resize: none;
+            outline: none;
+            tab-size: 4;
+        }
+
+        #mermaid-input::placeholder {
+            color: var(--border);
+        }
+
+        /* Preview Panel */
+        .preview-panel {
+            display: flex;
+            flex-direction: column;
+            background: var(--bg);
+            overflow: hidden;
+        }
+
+        /* Split.js Gutter */
+        .gutter {
+            background: var(--surface);
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='24' viewBox='0 0 4 24'%3E%3Ccircle cx='2' cy='6' r='1.5' fill='%23475569'/%3E%3Ccircle cx='2' cy='12' r='1.5' fill='%23475569'/%3E%3Ccircle cx='2' cy='18' r='1.5' fill='%23475569'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: center;
+            cursor: col-resize;
+            border-left: 1px solid var(--border);
+            border-right: 1px solid var(--border);
+            transition: background-color 0.2s;
+        }
+
+        .gutter:hover {
+            background-color: var(--surface-2);
+        }
+
+        .gutter.dragging {
+            background-color: var(--primary);
+        }
+
+        .preview-wrapper {
+            flex: 1;
+            overflow: auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+            position: relative;
+        }
+
+        #mermaid-output {
+            background: white;
+            border-radius: 12px;
+            padding: 32px;
+            min-width: 200px;
+            min-height: 200px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
+        }
+
+        #mermaid-output svg {
+            max-width: 100%;
+            height: auto;
+        }
+
+        /* Error Display */
+        .error-display {
+            display: none;
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            border-radius: 8px;
+            padding: 12px 16px;
+            margin: 8px 16px;
+            color: #fca5a5;
+            font-size: 0.8rem;
+            font-family: monospace;
+        }
+
+        .error-display.show {
+            display: block;
+        }
+
+        /* Status Bar */
+        .status-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 6px 16px;
+            background: var(--surface);
+            border-top: 1px solid var(--border);
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--success);
+        }
+
+        .status-dot.error {
+            background: var(--danger);
+        }
+
+        /* Templates Dropdown */
+        .dropdown {
+            position: relative;
+        }
+
+        .dropdown-menu {
+            display: none;
+            position: absolute;
+            top: 100%;
+            right: 0;
+            margin-top: 4px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 4px;
+            min-width: 220px;
+            z-index: 100;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+        }
+
+        .dropdown-menu.show {
+            display: block;
+        }
+
+        .dropdown-item {
+            display: block;
+            width: 100%;
+            padding: 8px 12px;
+            border: none;
+            border-radius: 6px;
+            background: transparent;
+            color: var(--text);
+            font-size: 0.85rem;
+            text-align: left;
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+
+        .dropdown-item:hover {
+            background: var(--surface-2);
+        }
+
+        .dropdown-item small {
+            display: block;
+            color: var(--text-muted);
+            font-size: 0.75rem;
+            margin-top: 2px;
+        }
+
+        /* Toast Notification */
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 12px 20px;
+            color: var(--text);
+            font-size: 0.875rem;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+            transform: translateY(100px);
+            opacity: 0;
+            transition: all 0.3s ease;
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .toast.show {
+            transform: translateY(0);
+            opacity: 1;
+        }
+
+        .toast.success {
+            border-color: var(--success);
+        }
+
+        .toast.error {
+            border-color: var(--danger);
+        }
+
+        /* Loading Overlay */
+        .loading-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 999;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .loading-overlay.show {
+            display: flex;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid var(--border);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .main {
+                flex-direction: column;
+            }
+
+            .gutter {
+                cursor: row-resize;
+                background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='4' viewBox='0 0 24 4'%3E%3Ccircle cx='6' cy='2' r='1.5' fill='%23475569'/%3E%3Ccircle cx='12' cy='2' r='1.5' fill='%23475569'/%3E%3Ccircle cx='18' cy='2' r='1.5' fill='%23475569'/%3E%3C/svg%3E");
+                border-left: none;
+                border-right: none;
+                border-top: 1px solid var(--border);
+                border-bottom: 1px solid var(--border);
+            }
+
+            .header {
+                padding: 12px 16px;
+            }
+
+            .header-actions {
+                width: 100%;
+                justify-content: flex-start;
+            }
+        }
+
+        /* Zoom Controls */
+        .zoom-controls {
+            position: absolute;
+            bottom: 16px;
+            right: 16px;
+            display: flex;
+            gap: 4px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 4px;
+        }
+
+        .zoom-btn {
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: none;
+            border-radius: 6px;
+            background: transparent;
+            color: var(--text);
+            cursor: pointer;
+            font-size: 1rem;
+            transition: background 0.15s;
+        }
+
+        .zoom-btn:hover {
+            background: var(--surface-2);
+        }
+
+        .zoom-level {
+            display: flex;
+            align-items: center;
+            padding: 0 8px;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-title">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+            </svg>
+            <h1>Mermaid Diagram Export</h1>
+        </div>
+        <div class="header-actions">
+            <!-- Direction Toggle -->
+            <div class="direction-toggle">
+                <button class="direction-btn active" data-direction="TB" onclick="setDirection('TB')" title="Top to Bottom (Vertical)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 5v14M5 12l7 7 7-7"/>
+                    </svg>
+                    Vertical
+                </button>
+                <button class="direction-btn" data-direction="LR" onclick="setDirection('LR')" title="Left to Right (Horizontal)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M5 12h14M12 5l7 7-7 7"/>
+                    </svg>
+                    Horizontal
+                </button>
+            </div>
+
+            <!-- Templates -->
+            <div class="dropdown">
+                <button class="btn" onclick="toggleDropdown(this)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                        <polyline points="14 2 14 8 20 8"/>
+                    </svg>
+                    Templates
+                </button>
+                <div class="dropdown-menu">
+                    <button class="dropdown-item" onclick="loadTemplate('simple')">
+                        Simple Flow
+                        <small>Basic flowchart with decisions</small>
+                    </button>
+                    <button class="dropdown-item" onclick="loadTemplate('process')">
+                        Process Flow
+                        <small>Multi-step process diagram</small>
+                    </button>
+                    <button class="dropdown-item" onclick="loadTemplate('auth')">
+                        Auth Flow
+                        <small>Authentication flow example</small>
+                    </button>
+                    <button class="dropdown-item" onclick="loadTemplate('cicd')">
+                        CI/CD Pipeline
+                        <small>Deployment pipeline flow</small>
+                    </button>
+                    <button class="dropdown-item" onclick="loadTemplate('ecommerce')">
+                        E-Commerce Order
+                        <small>Order processing flow</small>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Render Button -->
+            <button class="btn btn-primary" onclick="renderDiagram()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polygon points="5 3 19 12 5 21 5 3"/>
+                </svg>
+                Render
+            </button>
+
+            <!-- Export IMG -->
+            <button class="btn btn-success" onclick="exportToImage()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                    <circle cx="8.5" cy="8.5" r="1.5"/>
+                    <polyline points="21 15 16 10 5 21"/>
+                </svg>
+                Export IMG
+            </button>
+
+            <!-- Export PDF -->
+            <button class="btn btn-danger" onclick="exportToPDF()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                    <polyline points="14 2 14 8 20 8"/>
+                    <line x1="16" y1="13" x2="8" y2="13"/>
+                    <line x1="16" y1="17" x2="8" y2="17"/>
+                    <polyline points="10 9 9 9 8 9"/>
+                </svg>
+                Export PDF
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main">
+        <!-- Editor Panel -->
+        <div class="editor-panel">
+            <div class="panel-header">
+                <span class="panel-title">📝 Mermaid Code</span>
+                <button class="btn" style="padding: 4px 10px; font-size: 0.75rem;" onclick="clearEditor()">Clear</button>
+            </div>
+            <div id="error-display" class="error-display"></div>
+            <div class="editor-wrapper">
+                <textarea id="mermaid-input" spellcheck="false" placeholder="Enter your Mermaid flowchart code here...
+
+Example:
+flowchart TB
+    A[Start] --> B{Decision}
+    B -->|Yes| C[Process]
+    B -->|No| D[End]
+    C --> D">flowchart TD
+  A[HTTP Request] --> B[public/index.php]
+  B --> C[Load config config.php]
+  B --> D[DI FactoryDefault]
+  D --> E[Autoload namespaces loader.php]
+  D --> F[Register services services.php]
+  F --> G[Router router.php]
+  B --> H[Register Modules: auth, admin]
+  H --> I["Application->handle(REQUEST_URI)"]
+  I --> J[Router resolve module/controller/action]
+  J --> K["Module::registerServices (dispatcher/view)"]
+  K --> L["Dispatcher --> Controller Action"]
+  L --> M[Service via DI]
+  M --> N[Repository]
+  N --> O[Model]
+  O --> P[DB]
+  L --> Q[View render .phtml]
+  I --> R["Response->send()"]
+  B -->|Exception| S[Error handling: DB log + file log + error view]</textarea>
+            </div>
+            <div class="status-bar">
+                <div class="status-indicator">
+                    <div class="status-dot" id="status-dot"></div>
+                    <span id="status-text">Ready</span>
+                </div>
+                <span id="line-count">Lines: 0</span>
+            </div>
+        </div>
+
+        <!-- Preview Panel -->
+        <div class="preview-panel">
+            <div class="panel-header">
+                <span class="panel-title">👁️ Preview</span>
+                <span style="font-size: 0.75rem; color: var(--text-muted);" id="render-time"></span>
+            </div>
+            <div class="preview-wrapper" id="preview-wrapper">
+                <div id="mermaid-output"></div>
+                <div class="zoom-controls">
+                    <button class="zoom-btn" onclick="zoomOut()" title="Zoom Out">−</button>
+                    <span class="zoom-level" id="zoom-level">100%</span>
+                    <button class="zoom-btn" onclick="zoomIn()" title="Zoom In">+</button>
+                    <button class="zoom-btn" onclick="zoomMax()" title="Max Zoom (500%)">⤢</button>
+                    <button class="zoom-btn" onclick="zoomReset()" title="Reset Zoom">⟲</button>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loading-overlay">
+        <div class="spinner"></div>
+    </div>
+
+    <!-- Toast -->
+    <div class="toast" id="toast"></div>
+
+    <script>
+        // State
+        let currentDirection = 'TB';
+        let currentZoom = 1.2;
+        let renderTimeout = null;
+        let diagramId = 0;
+
+        // Initialize Mermaid
+        mermaid.initialize({
+            startOnLoad: false,
+            theme: 'default',
+            flowchart: {
+                useMaxWidth: true,
+                htmlLabels: true,
+                curve: 'basis'
+            },
+            securityLevel: 'loose'
+        });
+
+        // Initialize Split.js for resizable panels
+        const splitInstance = Split(['.editor-panel', '.preview-panel'], {
+            sizes: [50, 50],
+            minSize: [300, 300],
+            gutterSize: 8,
+            cursor: 'col-resize',
+            onDragStart: function() {
+                document.querySelector('.gutter').classList.add('dragging');
+            },
+            onDragEnd: function() {
+                document.querySelector('.gutter').classList.remove('dragging');
+            }
+        });
+
+        // Templates
+        const templates = {
+            simple: `flowchart {DIR}
+    A([Start]) --> B[Step 1]
+    B --> C{Decision}
+    C -->|Yes| D[Action A]
+    C -->|No| E[Action B]
+    D --> F([End])
+    E --> F`,
+
+            process: `flowchart {DIR}
+    A([📋 Start Process]) --> B[/Receive Request/]
+    B --> C{Valid Request?}
+    C -->|Yes| D[Assign to Team]
+    C -->|No| E[Return to Sender]
+    E --> B
+    D --> F[Analyze Requirements]
+    F --> G[Design Solution]
+    G --> H{Approved?}
+    H -->|Yes| I[Implement]
+    H -->|No| F
+    I --> J[Test & QA]
+    J --> K{Pass?}
+    K -->|Yes| L[Deploy]
+    K -->|No| I
+    L --> M([✅ Complete])`,
+
+            auth: `flowchart {DIR}
+    A([🔐 Login Page]) --> B[/Enter Credentials/]
+    B --> C{Valid Format?}
+    C -->|No| D[Show Validation Error]
+    D --> B
+    C -->|Yes| E[Send to Server]
+    E --> F{Authenticate}
+    F -->|Failed| G{Attempts > 3?}
+    G -->|No| H[Show Error Message]
+    H --> B
+    G -->|Yes| I[Lock Account]
+    I --> J[Send Reset Email]
+    F -->|Success| K{2FA Enabled?}
+    K -->|No| L[Create Session]
+    K -->|Yes| M[/Enter 2FA Code/]
+    M --> N{Valid Code?}
+    N -->|No| O[Show 2FA Error]
+    O --> M
+    N -->|Yes| L
+    L --> P([🏠 Dashboard])`,
+
+            cicd: `flowchart {DIR}
+    A([💻 Git Push]) --> B[Trigger CI Pipeline]
+    B --> C[Install Dependencies]
+    C --> D[Run Linter]
+    D --> E{Lint Pass?}
+    E -->|No| F[❌ Notify Developer]
+    E -->|Yes| G[Run Unit Tests]
+    G --> H{Tests Pass?}
+    H -->|No| F
+    H -->|Yes| I[Build Application]
+    I --> J{Build Success?}
+    J -->|No| F
+    J -->|Yes| K[Run Integration Tests]
+    K --> L{All Pass?}
+    L -->|No| F
+    L -->|Yes| M[Build Docker Image]
+    M --> N[Push to Registry]
+    N --> O{Branch?}
+    O -->|develop| P[Deploy to Staging]
+    O -->|main| Q[Deploy to Production]
+    P --> R([🧪 Staging Ready])
+    Q --> S([🚀 Production Live])`,
+
+            ecommerce: `flowchart {DIR}
+    A([🛒 Add to Cart]) --> B[View Cart]
+    B --> C{Proceed?}
+    C -->|No| D[Continue Shopping]
+    D --> A
+    C -->|Yes| E{Logged In?}
+    E -->|No| F[/Login or Register/]
+    F --> E
+    E -->|Yes| G[/Enter Shipping Info/]
+    G --> H[Calculate Shipping]
+    H --> I[/Select Payment/]
+    I --> J{Payment Method}
+    J -->|Credit Card| K[Process Card]
+    J -->|PayPal| L[Redirect to PayPal]
+    J -->|Bank Transfer| M[Show Bank Details]
+    K --> N{Payment OK?}
+    L --> N
+    M --> O[/Confirm Transfer/]
+    O --> N
+    N -->|No| P[Show Payment Error]
+    P --> I
+    N -->|Yes| Q[Create Order]
+    Q --> R[Send Confirmation Email]
+    R --> S[Update Inventory]
+    S --> T([📦 Order Placed])`
+        };
+
+        // Direction Toggle
+        function setDirection(dir) {
+            currentDirection = dir;
+            document.querySelectorAll('.direction-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.direction === dir);
+            });
+
+            // Update the code in editor
+            const input = document.getElementById('mermaid-input');
+            const code = input.value;
+            // Replace direction in flowchart declaration
+            input.value = code.replace(/flowchart\s+(TB|TD|BT|LR|RL)/i, `flowchart ${dir}`);
+            renderDiagram();
+        }
+
+        // Render Diagram
+        async function renderDiagram() {
+            const input = document.getElementById('mermaid-input');
+            const output = document.getElementById('mermaid-output');
+            const errorDisplay = document.getElementById('error-display');
+            const statusDot = document.getElementById('status-dot');
+            const statusText = document.getElementById('status-text');
+            const renderTime = document.getElementById('render-time');
+
+            const code = input.value.trim();
+            if (!code) {
+                output.innerHTML = '<p style="color: #94a3b8; font-style: italic;">Enter Mermaid code and click Render</p>';
+                return;
+            }
+
+            const startTime = performance.now();
+
+            try {
+                // Clear previous errors
+                errorDisplay.classList.remove('show');
+                errorDisplay.textContent = '';
+
+                // Generate unique ID for each render
+                diagramId++;
+                const id = `mermaid-diagram-${diagramId}`;
+
+                // Render
+                const { svg } = await mermaid.render(id, code);
+                output.innerHTML = svg;
+
+                // Apply zoom
+                applyZoom();
+
+                // Update status
+                statusDot.classList.remove('error');
+                statusText.textContent = 'Rendered successfully';
+
+                const elapsed = (performance.now() - startTime).toFixed(0);
+                renderTime.textContent = `Rendered in ${elapsed}ms`;
+
+            } catch (err) {
+                errorDisplay.textContent = err.message || 'Failed to render diagram';
+                errorDisplay.classList.add('show');
+                statusDot.classList.add('error');
+                statusText.textContent = 'Render error';
+                renderTime.textContent = '';
+
+                // Clean up any error elements mermaid might have added
+                const errorEl = document.getElementById(`d${id}`);
+                if (errorEl) errorEl.remove();
+            }
+        }
+
+        // Auto-render on input with debounce
+        document.getElementById('mermaid-input').addEventListener('input', function() {
+            // Update line count
+            const lines = this.value.split('\n').length;
+            document.getElementById('line-count').textContent = `Lines: ${lines}`;
+
+            // Debounced render
+            clearTimeout(renderTimeout);
+            renderTimeout = setTimeout(renderDiagram, 800);
+        });
+
+        // Tab support in textarea
+        document.getElementById('mermaid-input').addEventListener('keydown', function(e) {
+            if (e.key === 'Tab') {
+                e.preventDefault();
+                const start = this.selectionStart;
+                const end = this.selectionEnd;
+                this.value = this.value.substring(0, start) + '    ' + this.value.substring(end);
+                this.selectionStart = this.selectionEnd = start + 4;
+            }
+        });
+
+        // Export to Image (PNG)
+        async function exportToImage() {
+            const output = document.getElementById('mermaid-output');
+            const svgElement = output.querySelector('svg');
+
+            if (!svgElement) {
+                showToast('No diagram to export. Please render first.', 'error');
+                return;
+            }
+
+            showLoading(true);
+
+            try {
+                // Get SVG data
+                let svgData = new XMLSerializer().serializeToString(svgElement);
+                
+                // Get actual dimensions from viewBox or bounding box
+                const viewBox = svgElement.getAttribute('viewBox');
+                const bbox = svgElement.getBBox();
+                
+                // Parse dimensions - prefer viewBox, fallback to bbox
+                let width, height;
+                if (viewBox) {
+                    const parts = viewBox.split(' ').map(Number);
+                    width = parts[2];
+                    height = parts[3];
+                } else {
+                    width = bbox.width + bbox.x;
+                    height = bbox.height + bbox.y;
+                }
+                
+                // Ensure SVG has xmlns namespace and explicit dimensions
+                if (!svgData.includes('xmlns="http://www.w3.org/2000/svg"')) {
+                    svgData = svgData.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"');
+                }
+                
+                // Set explicit width and height attributes
+                svgData = svgData.replace(/width="[^"]*"/, `width="${width}"`);
+                svgData = svgData.replace(/height="[^"]*"/, `height="${height}"`);
+                
+                // If no width/height attributes exist, add them
+                if (!svgData.includes('width="')) {
+                    svgData = svgData.replace('<svg', `<svg width="${width}"`);
+                }
+                if (!svgData.includes('height="')) {
+                    svgData = svgData.replace('<svg', `<svg height="${height}"`);
+                }
+                
+                // Convert to base64 data URL instead of blob URL to avoid tainted canvas
+                const svgBase64 = btoa(unescape(encodeURIComponent(svgData)));
+                const dataUrl = 'data:image/svg+xml;base64,' + svgBase64;
+
+                // Create image from SVG
+                const img = new Image();
+                img.crossOrigin = 'anonymous';
+                img.onload = function() {
+                    // Create canvas with higher resolution
+                    const scale = 2;
+                    const canvas = document.createElement('canvas');
+                    canvas.width = img.width * scale;
+                    canvas.height = img.height * scale;
+
+                    const ctx = canvas.getContext('2d');
+                    ctx.scale(scale, scale);
+                    ctx.fillStyle = 'white';
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    ctx.drawImage(img, 0, 0);
+
+                    // Download
+                    const link = document.createElement('a');
+                    link.download = `mermaid-diagram-${Date.now()}.png`;
+                    link.href = canvas.toDataURL('image/png');
+                    link.click();
+
+                    showLoading(false);
+                    showToast('Image exported successfully!', 'success');
+                };
+
+                img.onerror = function(e) {
+                    showLoading(false);
+                    showToast('Failed to export image.', 'error');
+                };
+
+                img.src = dataUrl;
+
+            } catch (err) {
+                showLoading(false);
+                showToast('Export failed: ' + err.message, 'error');
+            }
+        }
+
+        // Export to PDF
+        async function exportToPDF() {
+            const output = document.getElementById('mermaid-output');
+            const svgElement = output.querySelector('svg');
+
+            if (!svgElement) {
+                showToast('No diagram to export. Please render first.', 'error');
+                return;
+            }
+
+            showLoading(true);
+
+            try {
+                console.log('[DEBUG PDF] Checking jsPDF...', window.jspdf);
+                const { jsPDF } = window.jspdf;
+                console.log('[DEBUG PDF] jsPDF obtained:', jsPDF);
+
+                // Get SVG data
+                let svgData = new XMLSerializer().serializeToString(svgElement);
+                
+                // Get actual dimensions from viewBox or bounding box
+                const viewBox = svgElement.getAttribute('viewBox');
+                const bbox = svgElement.getBBox();
+                
+                // Parse dimensions - prefer viewBox, fallback to bbox
+                let width, height;
+                if (viewBox) {
+                    const parts = viewBox.split(' ').map(Number);
+                    width = parts[2];
+                    height = parts[3];
+                } else {
+                    width = bbox.width + bbox.x;
+                    height = bbox.height + bbox.y;
+                }
+                
+                console.log('[DEBUG PDF] Calculated dimensions:', width, 'x', height);
+                
+                // Ensure SVG has xmlns namespace and explicit dimensions
+                if (!svgData.includes('xmlns="http://www.w3.org/2000/svg"')) {
+                    svgData = svgData.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"');
+                }
+                
+                // Set explicit width and height attributes
+                svgData = svgData.replace(/width="[^"]*"/, `width="${width}"`);
+                svgData = svgData.replace(/height="[^"]*"/, `height="${height}"`);
+                
+                // If no width/height attributes exist, add them
+                if (!svgData.includes('width="')) {
+                    svgData = svgData.replace('<svg', `<svg width="${width}"`);
+                }
+                if (!svgData.includes('height="')) {
+                    svgData = svgData.replace('<svg', `<svg height="${height}"`);
+                }
+                
+                // Convert to base64 data URL instead of blob URL to avoid tainted canvas
+                const svgBase64 = btoa(unescape(encodeURIComponent(svgData)));
+                const dataUrl = 'data:image/svg+xml;base64,' + svgBase64;
+
+                const img = new Image();
+                img.crossOrigin = 'anonymous';
+                img.onload = function() {
+                    console.log('[DEBUG PDF] Image loaded, dimensions:', img.width, 'x', img.height);
+                    
+                    const scale = 2;
+                    const canvas = document.createElement('canvas');
+                    canvas.width = img.width * scale;
+                    canvas.height = img.height * scale;
+
+                    const ctx = canvas.getContext('2d');
+                    ctx.scale(scale, scale);
+                    ctx.fillStyle = 'white';
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    ctx.drawImage(img, 0, 0);
+
+                    const imgData = canvas.toDataURL('image/png');
+
+                    // Determine PDF orientation
+                    const orientation = img.width > img.height ? 'landscape' : 'portrait';
+                    const pdf = new jsPDF({
+                        orientation: orientation,
+                        unit: 'px',
+                        format: [img.width + 80, img.height + 80]
+                    });
+
+                    // Add title
+                    pdf.setFontSize(14);
+                    pdf.setTextColor(100);
+                    pdf.text('Mermaid Diagram Export', 40, 30);
+
+                    // Add image
+                    pdf.addImage(imgData, 'PNG', 40, 50, img.width, img.height);
+
+                    // Add footer
+                    pdf.setFontSize(8);
+                    pdf.setTextColor(150);
+                    pdf.text(`Generated: ${new Date().toLocaleString()}`, 40, img.height + 70);
+
+                    pdf.save(`mermaid-diagram-${Date.now()}.pdf`);
+
+                    showLoading(false);
+                    showToast('PDF exported successfully!', 'success');
+                };
+
+                img.onerror = function(e) {
+                    console.error('[DEBUG PDF] Image failed to load', e);
+                    showLoading(false);
+                    showToast('Failed to export PDF.', 'error');
+                };
+
+                img.src = dataUrl;
+
+            } catch (err) {
+                console.error('[DEBUG PDF] Export error:', err);
+                showLoading(false);
+                showToast('Export failed: ' + err.message, 'error');
+            }
+        }
+
+        // Zoom Functions
+        const MIN_ZOOM = 0.1;
+        const MAX_ZOOM = 2.5;
+        const ZOOM_STEP = 0.1;
+
+        function zoomIn() {
+            currentZoom = Math.min(currentZoom + ZOOM_STEP, MAX_ZOOM);
+            applyZoom();
+        }
+
+        function zoomOut() {
+            currentZoom = Math.max(currentZoom - ZOOM_STEP, MIN_ZOOM);
+            applyZoom();
+        }
+
+        function zoomReset() {
+            currentZoom = 1.2;
+            applyZoom();
+        }
+
+        function zoomMax() {
+            currentZoom = MAX_ZOOM;
+            applyZoom();
+        }
+
+        function applyZoom() {
+            const output = document.getElementById('mermaid-output');
+            output.style.transform = `scale(${currentZoom})`;
+            output.style.transformOrigin = 'center center';
+            document.getElementById('zoom-level').textContent = `${Math.round(currentZoom * 100)}%`;
+        }
+
+        // Load Template
+        function loadTemplate(name) {
+            const template = templates[name];
+            if (template) {
+                document.getElementById('mermaid-input').value = template.replace(/{DIR}/g, currentDirection);
+                closeAllDropdowns();
+                renderDiagram();
+                updateLineCount();
+            }
+        }
+
+        // Clear Editor
+        function clearEditor() {
+            document.getElementById('mermaid-input').value = '';
+            document.getElementById('mermaid-output').innerHTML = '<p style="color: #94a3b8; font-style: italic;">Enter Mermaid code and click Render</p>';
+            document.getElementById('error-display').classList.remove('show');
+            document.getElementById('status-text').textContent = 'Ready';
+            document.getElementById('render-time').textContent = '';
+            updateLineCount();
+        }
+
+        // Dropdown Toggle
+        function toggleDropdown(btn) {
+            const menu = btn.nextElementSibling;
+            const isOpen = menu.classList.contains('show');
+            closeAllDropdowns();
+            if (!isOpen) {
+                menu.classList.add('show');
+            }
+        }
+
+        function closeAllDropdowns() {
+            document.querySelectorAll('.dropdown-menu').forEach(m => m.classList.remove('show'));
+        }
+
+        // Close dropdowns on outside click
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('.dropdown')) {
+                closeAllDropdowns();
+            }
+        });
+
+        // Toast Notification
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            toast.textContent = type === 'success' ? '✅ ' + message : '❌ ' + message;
+            toast.className = `toast ${type} show`;
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3000);
+        }
+
+        // Loading Overlay
+        function showLoading(show) {
+            document.getElementById('loading-overlay').classList.toggle('show', show);
+        }
+
+        // Update Line Count
+        function updateLineCount() {
+            const lines = document.getElementById('mermaid-input').value.split('\n').length;
+            document.getElementById('line-count').textContent = `Lines: ${lines}`;
+        }
+
+        // Keyboard Shortcuts
+        document.addEventListener('keydown', function(e) {
+            // Ctrl+Enter to render
+            if (e.ctrlKey && e.key === 'Enter') {
+                e.preventDefault();
+                renderDiagram();
+            }
+            // Ctrl+Shift+I to export image
+            if (e.ctrlKey && e.shiftKey && e.key === 'I') {
+                e.preventDefault();
+                exportToImage();
+            }
+            // Ctrl+Shift+P to export PDF
+            if (e.ctrlKey && e.shiftKey && e.key === 'P') {
+                e.preventDefault();
+                exportToPDF();
+            }
+        });
+
+        // Initial render
+        window.addEventListener('load', function() {
+            updateLineCount();
+            renderDiagram();
+        });
+    </script>
+</body>
+</html>
